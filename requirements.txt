@@ -1,0 +1,11 @@
+# --- Web framework ---
+Flask==3.0.3
+
+# --- Production WSGI server ---
+gunicorn==22.0.0
+
+# --- HTTP client (for future API calls / metadata fetching) ---
+requests==2.32.3
+
+# --- YouTube downloader/metadata (pytube fork, actively maintained) ---
+pytubefix==8.5.0

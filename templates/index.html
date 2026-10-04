@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Saziki — YouTube Downloader</title>
+
+<!-- Supabase JS SDK (v2) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --accent-2: #0ea5e9;
+    --danger: #f87171;
+    --success: #4ade80;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ---------- Top bar ---------- */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px;
+    background: rgba(15, 23, 42, 0.85);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+  .brand { font-weight: 700; color: var(--accent); font-size: 1.15rem; letter-spacing: .5px; }
+  .profile-wrap { position: relative; }
+  .avatar-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #0f172a; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: none; font-size: 1rem;
+    transition: transform .15s;
+  }
+  .avatar-btn:hover { transform: scale(1.05); }
+  .dropdown {
+    position: absolute; right: 0; top: 54px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; min-width: 220px; padding: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.5);
+    display: none; flex-direction: column;
+  }
+  .dropdown.open { display: flex; }
+  .dropdown button, .dropdown a {
+    background: none; border: none; color: var(--text);
+    text-align: left; padding: 10px 12px; border-radius: 6px;
+    cursor: pointer; font-size: .92rem; text-decoration: none;
+  }
+  .dropdown button:hover, .dropdown a:hover { background: var(--panel-2); }
+  .dropdown .email { padding: 8px 12px; color: var(--muted); font-size: .8rem; border-bottom: 1px solid var(--border); margin-bottom: 6px; word-break: break-all; }
+
+  /* ---------- Layout ---------- */
+  .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; margin-bottom: 24px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  }
+  h1, h2 { margin-top: 0; }
+  h1 { color: var(--accent); font-size: 1.6rem; }
+  h2 { color: var(--accent); font-size: 1.2rem; }
+  p.sub { color: var(--muted); margin-top: 4px; }
+
+  /* ---------- Form controls ---------- */
+  label { display: block; margin: 14px 0 6px; font-size: .9rem; color: var(--muted); }
+  input[type="text"], input[type="email"], input[type="password"], select {
+    width: 100%; padding: 12px 14px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: .95rem; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row > div { flex: 1 1 200px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #0f172a; font-weight: 700;
+    padding: 14px 22px; border: none; border-radius: 8px;
+    font-size: 1rem; cursor: pointer; transition: transform .1s, opacity .2s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+  .btn.full { width: 100%; margin-top: 20px; padding: 16px; font-size: 1.05rem; }
+  .btn.ghost {
+    background: none; color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn.ghost:hover { background: rgba(56,189,248,.1); }
+
+  /* ---------- API key display ---------- */
+  .key-box {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; margin-top: 10px;
+  }
+  .key-box code {
+    flex: 1; color: var(--accent); font-family: ui-monospace, monospace;
+    font-size: .9rem; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .icon-btn {
+    background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; cursor: pointer;
+    padding: 6px 10px; font-size: 1rem;
+  }
+  .icon-btn:hover { background: #2f3f57; }
+
+  /* ---------- Auth modal ---------- */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.7);
+    display: none; align-items: center; justify-content: center; z-index: 200;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px; width: 100%; max-width: 400px;
+  }
+  .modal h2 { margin-top: 0; }
+  .modal .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .modal .tabs button {
+    flex: 1; padding: 10px; background: var(--bg); color: var(--muted);
+    border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  }
+  .modal .tabs button.active { color: var(--accent); border-color: var(--accent); }
+  .modal .msg { margin-top: 12px; font-size: .88rem; }
+  .msg.error { color: var(--danger); }
+  .msg.success { color: var(--success); }
+
+  /* ---------- Info panel ---------- */
+  .info-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
+  .info-grid img { border-radius: 10px; width: 160px; height: 90px; object-fit: cover; }
+  .info-grid .meta { flex: 1; min-width: 200px; }
+  .info-grid .meta p { margin: 4px 0; color: var(--muted); font-size: .9rem; }
+  .info-grid .meta strong { color: var(--text); }
+
+  .api-doc pre {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; overflow-x: auto;
+    color: var(--accent); font-size: .85rem;
+  }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .center { text-align: center; }
+  .spinner {
+    border: 3px solid rgba(255,255,255,.15);
+    border-top-color: var(--accent);
+    border-radius: 50%; width: 22px; height: 22px;
+    animation: spin .8s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ================= TOP BAR ================= -->
+<header>
+  <div class="brand">🎬 Saziki Downloader</div>
+  <div class="profile-wrap">
+    <button class="avatar-btn" id="avatarBtn" title="Profile">?</button>
+    <div class="dropdown" id="dropdown">
+      <div class="email" id="ddEmail">Not signed in</div>
+      <button id="ddAccount">👤 Account</button>
+      <button id="ddApi">🔑 API</button>
+      <button id="ddLogout" class="hidden">🚪 Logout</button>
+    </div>
+  </div>
+</header>
+
+<!-- ================= MAIN ================= -->
+<div class="container" id="mainContainer">
+
+  <!-- Dashboard (only visible when logged in) -->
+  <div id="dashboard" class="hidden">
+    <div class="card">
+      <h1>YouTube Downloader</h1>
+      <p class="sub">Paste a YouTube link, pick a format &amp; quality, hit download.</p>
+
+      <label for="urlInput">YouTube URL</label>
+      <input id="urlInput" type="text" placeholder="https://www.youtube.com/watch?v=..." />
+
+      <div class="row" style="margin-top: 8px;">
+        <div>
+          <label for="formatSelect">Format</label>
+          <select id="formatSelect">
+            <option value="mp4">MP4 — Video</option>
+            <option value="mp3">MP3 — Audio</option>
+          </select>
+        </div>
+        <div>
+          <label for="qualitySelect">Quality</label>
+          <select id="qualitySelect">
+            <option value="720p">720p</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn full" id="downloadBtn">⬇️ Download</button>
+      <p class="muted center" id="dlStatus" style="margin-top:12px;"></p>
+    </div>
+
+    <!-- Video info card -->
+    <div class="card hidden" id="infoCard">
+      <h2>Video Info</h2>
+      <div class="info-grid">
+        <img id="infoThumb" alt="thumbnail" src="" />
+        <div class="meta">
+          <p><strong id="infoTitle">—</strong></p>
+          <p>Author: <span id="infoAuthor">—</span></p>
+          <p>Duration: <span id="infoDuration">—</span> sec</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- API documentation panel (opens from dropdown) -->
+  <div id="apiPanel" class="card hidden api-doc">
+    <h2>🔑 API Access</h2>
+    <p class="sub">Use this endpoint to download videos programmatically.</p>
+
+    <label>Endpoint</label>
+    <pre>GET https://YOUR-DOMAIN/api/v1/download</pre>
+
+    <label>Authentication (choose one)</label>
+    <pre>?api_key=YOUR_KEY
+Authorization: Bearer YOUR_KEY
+x-api-key: YOUR_KEY</pre>
+
+    <label>Parameters</label>
+    <pre>url       = YouTube video URL (required)
+format    = mp4 | mp3        (default: mp4)
+quality   = 720p | 1080p ... or 128kbps | 192kbps ...
+info_only = 1 (return metadata only, no file)</pre>
+
+    <label>Example</label>
+    <pre>curl -L -o video.mp4 \
+  "https://YOUR-DOMAIN/api/v1/download?api_key=YOUR_KEY&url=https://youtu.be/VIDEO_ID&format=mp4&quality=720p"</pre>
+
+    <label>Your API Key</label>
+    <div class="key-box">
+      <code id="apiKeyDisplay">—</code>
+      <button class="icon-btn" id="toggleKeyBtn" title="Show / hide">👁️</button>
+      <button class="icon-btn" id="copyKeyBtn" title="Copy">📋</button>
+    </div>
+    <p class="muted" style="font-size:.82rem;margin-top:8px;">
+      Key is permanent and unique to your account. Do not share it publicly.
+    </p>
+  </div>
+
+  <!-- Account panel -->
+  <div id="accountPanel" class="card hidden">
+    <h2>👤 Account</h2>
+    <p class="sub">Signed in as <strong id="acctEmail">—</strong></p>
+    <p class="sub">Usage count: <strong id="acctUsage">0</strong></p>
+    <button class="btn ghost" id="acctLogout" style="margin-top:16px;">Logout</button>
+  </div>
+
+</div>
+
+<!-- ================= AUTH MODAL ================= -->
+<div class="modal-backdrop" id="authModal">
+  <div class="modal">
+    <h2 id="authTitle">Welcome</h2>
+    <div class="tabs">
+      <button id="tabLogin" class="active">Login</button>
+      <button id="tabRegister">Register</button>
+    </div>
+
+    <label for="authEmail">Email</label>
+    <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email"/>
+
+    <label for="authPassword">Password</label>
+    <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password"/>
+
+    <button class="btn full" id="authSubmit">Login</button>
+    <p class="msg" id="authMsg"></p>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Supabase client
+   ============================================================ */
+const SUPABASE_URL = "{{ supabase_url }}";
+const SUPABASE_KEY = "{{ supabase_key }}";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ============================================================
+   DOM shortcuts
+   ============================================================ */
+const $ = (id) => document.getElementById(id);
+
+const els = {
+  avatar: $("avatarBtn"),
+  dropdown: $("dropdown"),
+  ddEmail: $("ddEmail"),
+  ddAccount: $("ddAccount"),
+  ddApi: $("ddApi"),
+  ddLogout: $("ddLogout"),
+
+  dashboard: $("dashboard"),
+  apiPanel: $("apiPanel"),
+  accountPanel: $("accountPanel"),
+
+  urlInput: $("urlInput"),
+  formatSelect: $("formatSelect"),
+  qualitySelect: $("qualitySelect"),
+  downloadBtn: $("downloadBtn"),
+  dlStatus: $("dlStatus"),
+
+  infoCard: $("infoCard"),
+  infoThumb: $("infoThumb"),
+  infoTitle: $("infoTitle"),
+  infoAuthor: $("infoAuthor"),
+  infoDuration: $("infoDuration"),
+
+  apiKeyDisplay: $("apiKeyDisplay"),
+  toggleKeyBtn: $("toggleKeyBtn"),
+  copyKeyBtn: $("copyKeyBtn"),
+
+  acctEmail: $("acctEmail"),
+  acctUsage: $("acctUsage"),
+  acctLogout: $("acctLogout"),
+
+  authModal: $("authModal"),
+  authTitle: $("authTitle"),
+  tabLogin: $("tabLogin"),
+  tabRegister: $("tabRegister"),
+  authEmail: $("authEmail"),
+  authPassword: $("authPassword"),
+  authSubmit: $("authSubmit"),
+  authMsg: $("authMsg"),
+};
+
+/* ============================================================
+   State
+   ============================================================ */
+let currentUser = null;
+let currentApiKey = "";
+let keyVisible = false;
+let authMode = "login";
+
+/* ============================================================
+   Auth UI
+   ============================================================ */
+function openAuthModal(mode = "login") {
+  authMode = mode;
+  updateAuthModeUI();
+  els.authModal.classList.add("open");
+}
+function closeAuthModal() {
+  els.authModal.classList.remove("open");
+  els.authMsg.textContent = "";
+}
+function updateAuthModeUI() {
+  const isLogin = authMode === "login";
+  els.tabLogin.classList.toggle("active", isLogin);
+  els.tabRegister.classList.toggle("active", !isLogin);
+  els.authTitle.textContent = isLogin ? "Login" : "Create account";
+  els.authSubmit.textContent = isLogin ? "Login" : "Register";
+  els.authMsg.textContent = "";
+}
+
+els.tabLogin.onclick = () => { authMode = "login"; updateAuthModeUI(); };
+els.tabRegister.onclick = () => { authMode = "register"; updateAuthModeUI(); };
+
+async function handleAuth() {
+  const email = els.authEmail.value.trim();
+  const password = els.authPassword.value;
+  if (!email || !password) {
+    setAuthMsg("Email and password required.", "error"); return;
+  }
+  els.authSubmit.disabled = true;
+  setAuthMsg(authMode === "login" ? "Signing in..." : "Creating account...");
+
+  try {
+    if (authMode === "login") {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      await onLoggedIn(data.user);
+    } else {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.user && !data.session) {
+        setAuthMsg("Check your email to confirm your account, then log in.", "success");
+        els.authSubmit.disabled = false;
+        return;
+      }
+      if (data.user) await onLoggedIn(data.user);
+    }
+    closeAuthModal();
+  } catch (err) {
+    setAuthMsg(err.message || String(err), "error");
+  } finally {
+    els.authSubmit.disabled = false;
+  }
+}
+els.authSubmit.onclick = handleAuth;
+
+function setAuthMsg(text, cls = "") {
+  els.authMsg.textContent = text;
+  els.authMsg.className = "msg " + cls;
+}
+
+/* ============================================================
+   Session / profile lifecycle
+   ============================================================ */
+async function onLoggedIn(user) {
+  currentUser = user;
+  els.avatar.textContent = (user.email || "?").charAt(0).toUpperCase();
+  els.ddEmail.textContent = user.email || "—";
+  els.acctEmail.textContent = user.email || "—";
+  els.ddLogout.classList.remove("hidden");
+  els.dashboard.classList.remove("hidden");
+  els.accountPanel.classList.add("hidden");
+  els.apiPanel.classList.add("hidden");
+
+  await fetchOrCreateApiKey(user);
+}
+
+async function fetchOrCreateApiKey(user) {
+  try {
+    const res = await fetch("/api/v1/me", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: user.id, email: user.email }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "API key fetch failed");
+    currentApiKey = json.data.api_key;
+    els.acctUsage.textContent = json.data.usage_count ?? 0;
+    renderApiKey();
+  } catch (err) {
+    console.error(err);
+    els.apiKeyDisplay.textContent = "Error loading key";
+  }
+}
+
+function renderApiKey() {
+  els.apiKeyDisplay.textContent = keyVisible
+    ? currentApiKey
+    : "•".repeat(Math.min(currentApiKey.length, 40));
+  els.toggleKeyBtn.textContent = keyVisible ? "🙈" : "👁️";
+}
+
+els.toggleKeyBtn.onclick = () => { keyVisible = !keyVisible; renderApiKey(); };
+els.copyKeyBtn.onclick = async () => {
+  if (!currentApiKey) return;
+  try {
+    await navigator.clipboard.writeText(currentApiKey);
+    els.copyKeyBtn.textContent = "✅";
+    setTimeout(() => (els.copyKeyBtn.textContent = "📋"), 1200);
+  } catch {
+    alert("Copy failed. Long-press the key to copy manually.");
+  }
+};
+
+/* ============================================================
+   Header dropdown
+   ============================================================ */
+els.avatar.onclick = (e) => {
+  e.stopPropagation();
+  if (!currentUser) { openAuthModal("login"); return; }
+  els.dropdown.classList.toggle("open");
+};
+document.addEventListener("click", () => els.dropdown.classList.remove("open"));
+els.dropdown.onclick = (e) => e.stopPropagation();
+
+els.ddAccount.onclick = () => {
+  els.accountPanel.classList.remove("hidden");
+  els.apiPanel.classList.add("hidden");
+  els.dashboard.classList.add("hidden");
+  els.dropdown.classList.remove("open");
+};
+els.ddApi.onclick = () => {
+  els.apiPanel.classList.remove("hidden");
+  els.accountPanel.classList.add("hidden");
+  els.dashboard.classList.add("hidden");
+  els.dropdown.classList.remove("open");
+};
+
+async function logout() {
+  await sb.auth.signOut();
+  currentUser = null;
+  currentApiKey = "";
+  els.avatar.textContent = "?";
+  els.ddEmail.textContent = "Not signed in";
+  els.ddLogout.classList.add("hidden");
+  els.dashboard.classList.add("hidden");
+  els.apiPanel.classList.add("hidden");
+  els.accountPanel.classList.add("hidden");
+  els.dropdown.classList.remove("open");
+}
+els.ddLogout.onclick = logout;
+els.acctLogout.onclick = logout;
+
+/* ============================================================
+   Video info + quality fetch
+   ============================================================ */
+async function fetchVideoInfo(url) {
+  const res = await fetch(`/api/v1/qualities?url=${encodeURIComponent(url)}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || "info failed");
+  return json.data;
+}
+
+els.urlInput.addEventListener("blur", async () => {
+  const url = els.urlInput.value.trim();
+  if (!url || !currentUser) return;
+  els.dlStatus.textContent = "Fetching video info...";
+  try {
+    const info = await fetchVideoInfo(url);
+    els.infoCard.classList.remove("hidden");
+    els.infoThumb.src = info.thumbnail;
+    els.infoTitle.textContent = info.title;
+    els.infoAuthor.textContent = info.author;
+    els.infoDuration.textContent = info.duration;
+    populateQualities();
+    els.dlStatus.textContent = "";
+  } catch (err) {
+    els.dlStatus.textContent = "Could not fetch info: " + err.message;
+  }
+});
+
+function populateQualities() {
+  const fmt = els.formatSelect.value;
+  els.qualitySelect.innerHTML = "";
+  const list = fmt === "mp4"
+    ? (window._lastInfo?.mp4 || ["360p", "720p", "1080p"])
+    : (window._lastInfo?.mp3 || ["128kbps", "192kbps", "320kbps"]);
+  list.forEach((q) => {
+    const opt = document.createElement("option");
+    opt.value = q; opt.textContent = q;
+    els.qualitySelect.appendChild(opt);
+  });
+}
+
+// Patch fetchVideoInfo to cache result for populateQualities
+const _origFetchInfo = fetchVideoInfo;
+window.fetchVideoInfo = fetchVideoInfo = async (url) => {
+  const info = await _origFetchInfo(url);
+  window._lastInfo = info;
+  return info;
+};
+
+els.formatSelect.onchange = () => {
+  if (window._lastInfo) populateQualities();
+};
+
+/* ============================================================
+   Download
+   ============================================================ */
+els.downloadBtn.onclick = async () => {
+  const url = els.urlInput.value.trim();
+  if (!url) { els.dlStatus.textContent = "Please enter a YouTube URL."; return; }
+  if (!currentApiKey) { els.dlStatus.textContent = "API key not loaded."; return; }
+
+  const fmt = els.formatSelect.value;
+  const quality = els.qualitySelect.value;
+  els.downloadBtn.disabled = true;
+  els.dlStatus.innerHTML = '<span class="spinner"></span> Preparing download...';
+
+  try {
+    const endpoint = `/api/v1/download?api_key=${encodeURIComponent(currentApiKey)}`
+                   + `&url=${encodeURIComponent(url)}`
+                   + `&format=${encodeURIComponent(fmt)}`
+                   + `&quality=${encodeURIComponent(quality)}`;
+
+    const res = await fetch(endpoint);
+    if (!res.ok) {
+      let msg = "Download failed.";
+      try { msg = (await res.json()).error || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") || "";
+    const match = cd.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `${fmt}_download`;
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+
+    els.dlStatus.textContent = "✅ Download complete!";
+  } catch (err) {
+    els.dlStatus.textContent = "❌ " + err.message;
+  } finally {
+    els.downloadBtn.disabled = false;
+  }
+};
+
+/* ============================================================
+   Bootstrap: restore session on load
+   ============================================================ */
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    await onLoggedIn(session.user);
+  } else {
+    openAuthModal("login");
+  }
+})();
+</script>
+
+</body>
+  </html>

@@ -1,588 +1,1072 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Saziki — YouTube Downloader</title>
+<title>Saziki Downloader — Premium YouTube Downloader</title>
 
-<!-- Supabase JS SDK (v2) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          ink:  { 900:'#05060a', 800:'#0a0d16', 700:'#0f1322', 600:'#161b2e' },
+          neon: { 400:'#7c5cff', 500:'#6366f1', 600:'#4f46e5' },
+          cyan: { 400:'#22d3ee', 500:'#06b6d4' },
+          pink: { 500:'#ec4899' },
+        },
+        fontFamily: {
+          sans: ['Inter','system-ui','-apple-system','Segoe UI','Roboto','sans-serif'],
+          mono: ['JetBrains Mono','ui-monospace','SFMono-Regular','monospace'],
+        },
+        animation: {
+          'float-slow': 'float 8s ease-in-out infinite',
+          'fade-in': 'fadeIn .4s ease-out',
+          'slide-up':'slideUp .5s cubic-bezier(.2,.9,.25,1)',
+        },
+        keyframes: {
+          float:    {'0%,100%':{transform:'translateY(0)'},'50%':{transform:'translateY(-18px)'}},
+          fadeIn:   {'0%':{opacity:0},'100%':{opacity:1}},
+          slideUp:  {'0%':{opacity:0,transform:'translateY(20px)'},'100%':{opacity:1,transform:'translateY(0)'}},
+        },
+      },
+    },
+  };
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-  :root {
-    --bg: #0f172a;
-    --panel: #1e293b;
-    --panel-2: #273449;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
-    --accent: #38bdf8;
-    --accent-2: #0ea5e9;
-    --danger: #f87171;
-    --success: #4ade80;
-    --border: #334155;
+  html, body { background:#05060a; color:#e2e8f0; }
+  body { font-family:'Inter', system-ui, sans-serif; min-height:100vh; }
+
+  .ambient { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+  .ambient::before, .ambient::after {
+    content:''; position:absolute; border-radius:50%;
+    filter: blur(120px); opacity:.35;
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; height: 100%; }
-  body {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
+  .ambient::before {
+    width:560px; height:560px; top:-160px; left:-160px;
+    background: radial-gradient(circle, #7c5cff 0%, transparent 70%);
+  }
+  .ambient::after {
+    width:620px; height:620px; bottom:-200px; right:-200px;
+    background: radial-gradient(circle, #22d3ee 0%, transparent 70%);
   }
 
-  /* ---------- Top bar ---------- */
-  header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 24px;
-    background: rgba(15, 23, 42, 0.85);
-    border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 100;
-    backdrop-filter: blur(8px);
+  .glass {
+    background: rgba(15, 19, 34, 0.55);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(124, 92, 255, 0.15);
+    box-shadow: 0 10px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
   }
-  .brand { font-weight: 700; color: var(--accent); font-size: 1.15rem; letter-spacing: .5px; }
-  .profile-wrap { position: relative; }
-  .avatar-btn {
-    width: 42px; height: 42px; border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    color: #0f172a; font-weight: 700;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; border: none; font-size: 1rem;
-    transition: transform .15s;
+  .glass-strong {
+    background: rgba(10, 13, 22, 0.85);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border: 1px solid rgba(124, 92, 255, 0.22);
+    box-shadow: 0 20px 70px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.05);
   }
-  .avatar-btn:hover { transform: scale(1.05); }
-  .dropdown {
-    position: absolute; right: 0; top: 54px;
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 10px; min-width: 220px; padding: 8px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.5);
-    display: none; flex-direction: column;
-  }
-  .dropdown.open { display: flex; }
-  .dropdown button, .dropdown a {
-    background: none; border: none; color: var(--text);
-    text-align: left; padding: 10px 12px; border-radius: 6px;
-    cursor: pointer; font-size: .92rem; text-decoration: none;
-  }
-  .dropdown button:hover, .dropdown a:hover { background: var(--panel-2); }
-  .dropdown .email { padding: 8px 12px; color: var(--muted); font-size: .8rem; border-bottom: 1px solid var(--border); margin-bottom: 6px; word-break: break-all; }
 
-  /* ---------- Layout ---------- */
-  .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
-  .card {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 14px; padding: 28px; margin-bottom: 24px;
-    box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  .grad-text {
+    background: linear-gradient(120deg, #a78bfa 0%, #22d3ee 50%, #ec4899 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
   }
-  h1, h2 { margin-top: 0; }
-  h1 { color: var(--accent); font-size: 1.6rem; }
-  h2 { color: var(--accent); font-size: 1.2rem; }
-  p.sub { color: var(--muted); margin-top: 4px; }
 
-  /* ---------- Form controls ---------- */
-  label { display: block; margin: 14px 0 6px; font-size: .9rem; color: var(--muted); }
-  input[type="text"], input[type="email"], input[type="password"], select {
-    width: 100%; padding: 12px 14px;
-    background: var(--bg); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px;
-    font-size: .95rem; outline: none;
+  .grad-border { position: relative; }
+  .grad-border::before {
+    content:''; position:absolute; inset:0; border-radius:inherit; padding:1px;
+    background: linear-gradient(120deg, rgba(124,92,255,.6), rgba(34,211,238,.4), rgba(236,72,153,.5));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    pointer-events: none;
   }
-  input:focus, select:focus { border-color: var(--accent); }
-  .row { display: flex; gap: 16px; flex-wrap: wrap; }
-  .row > div { flex: 1 1 200px; }
 
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    color: #0f172a; font-weight: 700;
-    padding: 14px 22px; border: none; border-radius: 8px;
-    font-size: 1rem; cursor: pointer; transition: transform .1s, opacity .2s;
+  .fancy-input {
+    width:100%; padding:14px 16px; border-radius:12px;
+    background: rgba(5,6,10,0.6);
+    border: 1px solid rgba(124,92,255,.22);
+    color:#e2e8f0; outline:none; transition:.2s; font-size:.95rem;
   }
-  .btn:hover { transform: translateY(-1px); }
-  .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
-  .btn.full { width: 100%; margin-top: 20px; padding: 16px; font-size: 1.05rem; }
-  .btn.ghost {
-    background: none; color: var(--accent);
-    border: 1px solid var(--accent);
+  .fancy-input:focus {
+    border-color:#7c5cff;
+    box-shadow: 0 0 0 4px rgba(124,92,255,.15);
   }
-  .btn.ghost:hover { background: rgba(56,189,248,.1); }
 
-  /* ---------- API key display ---------- */
-  .key-box {
-    display: flex; align-items: center; gap: 8px;
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: 8px; padding: 12px 14px; margin-top: 10px;
+  .btn-primary {
+    background: linear-gradient(120deg, #7c5cff 0%, #6366f1 50%, #22d3ee 100%);
+    color:#fff; font-weight:600; border-radius:12px;
+    padding:12px 22px;
+    transition: transform .15s, box-shadow .2s;
+    box-shadow: 0 8px 30px rgba(124,92,255,.35);
+    display:inline-flex; align-items:center; justify-content:center;
   }
-  .key-box code {
-    flex: 1; color: var(--accent); font-family: ui-monospace, monospace;
-    font-size: .9rem; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap;
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 40px rgba(124,92,255,.5); }
+  .btn-primary:disabled { opacity:.55; cursor:not-allowed; transform:none; }
+
+  .btn-ghost {
+    background: rgba(124,92,255,.08);
+    border: 1px solid rgba(124,92,255,.35);
+    color:#c7d2fe; border-radius:10px; padding:10px 16px;
+    transition:.2s; display:inline-flex; align-items:center; justify-content:center;
   }
+  .btn-ghost:hover { background: rgba(124,92,255,.18); }
+
+  .btn-danger {
+    background: rgba(239,68,68,.12);
+    border: 1px solid rgba(239,68,68,.4);
+    color:#fca5a5; border-radius:10px; padding:12px 18px;
+    transition:.2s; display:inline-flex; align-items:center; justify-content:center;
+  }
+  .btn-danger:hover { background: rgba(239,68,68,.22); }
+
   .icon-btn {
-    background: var(--panel-2); border: 1px solid var(--border);
-    color: var(--text); border-radius: 6px; cursor: pointer;
-    padding: 6px 10px; font-size: 1rem;
+    background: rgba(124,92,255,.08);
+    border: 1px solid rgba(124,92,255,.25);
+    color:#c7d2fe;
+    border-radius:10px; padding:8px 12px;
+    transition:.2s; cursor:pointer;
   }
-  .icon-btn:hover { background: #2f3f57; }
+  .icon-btn:hover { background: rgba(124,92,255,.2); }
 
-  /* ---------- Auth modal ---------- */
-  .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,.7);
-    display: none; align-items: center; justify-content: center; z-index: 200;
-  }
-  .modal-backdrop.open { display: flex; }
-  .modal {
-    background: var(--panel); border: 1px solid var(--border);
-    border-radius: 14px; padding: 28px; width: 100%; max-width: 400px;
-  }
-  .modal h2 { margin-top: 0; }
-  .modal .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
-  .modal .tabs button {
-    flex: 1; padding: 10px; background: var(--bg); color: var(--muted);
-    border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
-  }
-  .modal .tabs button.active { color: var(--accent); border-color: var(--accent); }
-  .modal .msg { margin-top: 12px; font-size: .88rem; }
-  .msg.error { color: var(--danger); }
-  .msg.success { color: var(--success); }
+  .dropdown { display:none; }
+  .dropdown.open { display:flex; animation: slideUp .22s cubic-bezier(.2,.9,.25,1); }
 
-  /* ---------- Info panel ---------- */
-  .info-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
-  .info-grid img { border-radius: 10px; width: 160px; height: 90px; object-fit: cover; }
-  .info-grid .meta { flex: 1; min-width: 200px; }
-  .info-grid .meta p { margin: 4px 0; color: var(--muted); font-size: .9rem; }
-  .info-grid .meta strong { color: var(--text); }
+  .modal { display:none; }
+  .modal.open { display:flex; animation: fadeIn .2s ease-out; }
 
-  .api-doc pre {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: 8px; padding: 14px; overflow-x: auto;
-    color: var(--accent); font-size: .85rem;
+  pre.code {
+    background: #0a0d16; border:1px solid rgba(124,92,255,.15);
+    border-radius:10px; padding:14px 16px; overflow-x:auto;
+    font-family:'JetBrains Mono', monospace; font-size:.82rem;
+    color:#a5b4fc; line-height:1.55;
   }
-  .hidden { display: none !important; }
-  .muted { color: var(--muted); }
-  .center { text-align: center; }
+  pre.code .k { color:#f472b6; }
+  pre.code .s { color:#86efac; }
+  pre.code .c { color:#64748b; }
+  pre.code .n { color:#fbbf24; }
+
+  .code-tab {
+    padding:6px 12px; border-radius:8px; cursor:pointer;
+    font-size:.78rem; color:#94a3b8; transition:.2s;
+    border:1px solid transparent;
+  }
+  .code-tab.active {
+    color:#c7d2fe; background: rgba(124,92,255,.15);
+    border-color: rgba(124,92,255,.35);
+  }
+
   .spinner {
-    border: 3px solid rgba(255,255,255,.15);
-    border-top-color: var(--accent);
-    border-radius: 50%; width: 22px; height: 22px;
-    animation: spin .8s linear infinite; display: inline-block;
+    width:20px; height:20px; border-radius:50%;
+    border:2.5px solid rgba(255,255,255,.15);
+    border-top-color:#a78bfa;
+    animation: spin .8s linear infinite;
+    display:inline-block;
+    vertical-align: middle;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed; top:20px; right:20px; z-index:9999;
+    min-width:260px; padding:14px 18px; border-radius:12px;
+    background: rgba(10,13,22,.95);
+    border:1px solid rgba(124,92,255,.35);
+    box-shadow: 0 20px 50px rgba(0,0,0,.5);
+    display:flex; align-items:center; gap:10px;
+    animation: slideUp .3s ease-out;
+  }
+  .toast.success { border-color: rgba(74,222,128,.45); }
+  .toast.error   { border-color: rgba(248,113,113,.45); }
+
+  .floating-card { animation: float 8s ease-in-out infinite; }
+  .floating-card.delay-1 { animation-delay:-3s; }
+  .floating-card.delay-2 { animation-delay:-6s; }
+
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-track { background:#0a0d16; }
+  ::-webkit-scrollbar-thumb { background:#2a2f45; border-radius:5px; }
+  ::-webkit-scrollbar-thumb:hover { background:#3b4263; }
 </style>
 </head>
-<body>
 
-<!-- ================= TOP BAR ================= -->
-<header>
-  <div class="brand">🎬 Saziki Downloader</div>
-  <div class="profile-wrap">
-    <button class="avatar-btn" id="avatarBtn" title="Profile">?</button>
-    <div class="dropdown" id="dropdown">
-      <div class="email" id="ddEmail">Not signed in</div>
-      <button id="ddAccount">👤 Account</button>
-      <button id="ddApi">🔑 API</button>
-      <button id="ddLogout" class="hidden">🚪 Logout</button>
+<body>
+<div class="ambient"></div>
+
+<!-- ================== TOP BAR ================== -->
+<header class="sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between glass rounded-b-2xl">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-neon-400 to-cyan-400 flex items-center justify-center shadow-lg shadow-neon-400/30">
+        <i data-lucide="zap" class="w-5 h-5 text-white"></i>
+      </div>
+      <div>
+        <div class="font-extrabold text-lg grad-text leading-none">Saziki</div>
+        <div class="text-[10px] uppercase tracking-[.2em] text-slate-400">Downloader</div>
+      </div>
+    </div>
+
+    <nav class="hidden md:flex items-center gap-1 text-sm">
+      <a href="#" id="navHome" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition">Home</a>
+      <a href="#" id="navDashboard" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition hidden">Dashboard</a>
+      <a href="#" id="navApi" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition hidden">API Docs</a>
+      <a href="#" id="navAccount" class="px-3 py-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/5 transition hidden">Account</a>
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <div id="guestCta" class="flex items-center gap-2">
+        <button id="btnLoginTop" class="btn-ghost text-sm hidden sm:inline-flex">Sign in</button>
+        <button id="btnStartTop" class="btn-primary text-sm">
+          Start Now <i data-lucide="arrow-right" class="w-4 h-4 ml-1"></i>
+        </button>
+      </div>
+
+      <div id="userArea" class="relative hidden">
+        <button id="avatarBtn" class="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-400 to-cyan-400 flex items-center justify-center text-white font-bold shadow-lg shadow-neon-400/30 hover:scale-105 transition">
+          <span id="avatarInitial">?</span>
+        </button>
+        <div id="avatarDropdown" class="dropdown absolute right-0 top-12 glass-strong rounded-xl p-2 w-64 flex-col">
+          <div class="px-3 py-2 border-b border-white/5 mb-1">
+            <div class="text-xs text-slate-400">Signed in as</div>
+            <div class="text-sm font-semibold truncate" id="ddEmail">—</div>
+          </div>
+          <button data-nav="account" class="dd-item flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-white/5 transition">
+            <i data-lucide="user-circle" class="w-4 h-4 text-neon-400"></i> Account
+          </button>
+          <button data-nav="api" class="dd-item flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-white/5 transition">
+            <i data-lucide="key-round" class="w-4 h-4 text-cyan-400"></i> API Keys &amp; Docs
+          </button>
+          <button data-nav="dashboard" class="dd-item flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-white/5 transition">
+            <i data-lucide="layout-dashboard" class="w-4 h-4 text-pink-400"></i> Dashboard
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </header>
 
-<!-- ================= MAIN ================= -->
-<div class="container" id="mainContainer">
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
 
-  <!-- Dashboard (only visible when logged in) -->
-  <div id="dashboard" class="hidden">
-    <div class="card">
-      <h1>YouTube Downloader</h1>
-      <p class="sub">Paste a YouTube link, pick a format &amp; quality, hit download.</p>
+  <!-- ================= LANDING ================= -->
+  <section id="viewLanding" class="animate-fade-in">
+    <div class="relative pt-10 pb-16 text-center">
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs font-medium text-cyan-300 mb-6">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+        Fast · Free · No watermarks
+      </div>
 
-      <label for="urlInput">YouTube URL</label>
-      <input id="urlInput" type="text" placeholder="https://www.youtube.com/watch?v=..." />
+      <h1 class="text-4xl sm:text-6xl md:text-7xl font-black leading-[1.05] tracking-tight">
+        Download YouTube<br/>
+        <span class="grad-text">at the speed of light</span>
+      </h1>
 
-      <div class="row" style="margin-top: 8px;">
-        <div>
-          <label for="formatSelect">Format</label>
-          <select id="formatSelect">
-            <option value="mp4">MP4 — Video</option>
-            <option value="mp3">MP3 — Audio</option>
-          </select>
+      <p class="mt-6 max-w-2xl mx-auto text-slate-400 text-base sm:text-lg">
+        A premium, developer-friendly downloader with dynamic quality selection, permanent API keys,
+        and a delightfully fast experience. Built for creators, engineers, and everyone in between.
+      </p>
+
+      <div class="mt-9 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <button id="heroStart" class="btn-primary text-base px-8 py-4">
+          <i data-lucide="rocket" class="w-5 h-5 mr-2"></i> Get Started Free
+        </button>
+        <a href="#features" class="btn-ghost text-base px-8 py-4">
+          <i data-lucide="sparkles" class="w-5 h-5 mr-2"></i> See Features
+        </a>
+      </div>
+
+      <div class="relative mt-16 h-72 sm:h-80">
+        <div class="hidden md:block floating-card glass rounded-2xl p-4 w-64 absolute left-[6%] top-6 text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-red-500/20 flex items-center justify-center">
+              <i data-lucide="youtube" class="w-4 h-4 text-red-400"></i>
+            </div>
+            <div class="text-sm font-semibold">MP4 · 1080p</div>
+          </div>
+          <div class="mt-3 h-2 rounded-full bg-white/5 overflow-hidden">
+            <div class="h-full w-[86%] bg-gradient-to-r from-neon-400 to-cyan-400"></div>
+          </div>
+          <div class="text-xs text-slate-400 mt-2">Rendering stream…</div>
         </div>
+
+        <div class="hidden md:block floating-card delay-1 glass rounded-2xl p-4 w-64 absolute right-[6%] top-2 text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+              <i data-lucide="music" class="w-4 h-4 text-cyan-400"></i>
+            </div>
+            <div class="text-sm font-semibold">MP3 · 320 kbps</div>
+          </div>
+          <div class="mt-3 h-2 rounded-full bg-white/5 overflow-hidden">
+            <div class="h-full w-[62%] bg-gradient-to-r from-pink-500 to-cyan-400"></div>
+          </div>
+          <div class="text-xs text-slate-400 mt-2">Extracting audio…</div>
+        </div>
+
+        <div class="floating-card delay-2 glass rounded-2xl p-5 absolute left-1/2 -translate-x-1/2 top-24 w-80 sm:w-96">
+          <div class="flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-neon-400 to-cyan-400 flex items-center justify-center">
+              <i data-lucide="check" class="w-5 h-5 text-white"></i>
+            </div>
+            <div>
+              <div class="font-semibold text-sm">Download Complete</div>
+              <div class="text-xs text-slate-400">vacation_vlog.mp4 · 128 MB</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="features" class="grid md:grid-cols-3 gap-6 mt-4">
+      <div class="glass rounded-2xl p-6 grad-border">
+        <div class="w-11 h-11 rounded-xl bg-neon-400/15 flex items-center justify-center mb-4">
+          <i data-lucide="gauge" class="w-5 h-5 text-neon-400"></i>
+        </div>
+        <h3 class="text-lg font-bold">Blazing Fast</h3>
+        <p class="text-sm text-slate-400 mt-2">Optimized streams and smart caching deliver your files with minimal wait time.</p>
+      </div>
+      <div class="glass rounded-2xl p-6 grad-border">
+        <div class="w-11 h-11 rounded-xl bg-cyan-400/15 flex items-center justify-center mb-4">
+          <i data-lucide="sliders-horizontal" class="w-5 h-5 text-cyan-400"></i>
+        </div>
+        <h3 class="text-lg font-bold">Dynamic Quality</h3>
+        <p class="text-sm text-slate-400 mt-2">Real resolutions pulled directly from YouTube — 360p up to 1080p &amp; beyond.</p>
+      </div>
+      <div class="glass rounded-2xl p-6 grad-border">
+        <div class="w-11 h-11 rounded-xl bg-pink-500/15 flex items-center justify-center mb-4">
+          <i data-lucide="code-2" class="w-5 h-5 text-pink-500"></i>
+        </div>
+        <h3 class="text-lg font-bold">Developer API</h3>
+        <p class="text-sm text-slate-400 mt-2">Permanent API key per account. REST endpoints with curl, JS, and Python examples.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DASHBOARD ================= -->
+  <section id="viewDashboard" class="hidden animate-slide-up">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold">Dashboard</h1>
+        <p class="text-sm text-slate-400">Paste a YouTube link, pick a format &amp; quality, hit download.</p>
+      </div>
+      <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg glass text-xs">
+        <i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span class="text-slate-300">Service online</span>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-5 gap-6">
+      <div class="lg:col-span-3 glass-strong rounded-2xl p-6 sm:p-8">
+        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">YouTube URL</label>
+        <div class="relative">
+          <i data-lucide="link" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none"></i>
+          <input id="urlInput" type="text" placeholder="https://www.youtube.com/watch?v=..."
+                 class="fancy-input pl-11"/>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-4 mt-5">
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Format</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button data-format="mp4" class="format-btn active rounded-xl py-3 text-sm font-semibold transition border border-neon-400/40 bg-neon-400/10 text-white">
+                <i data-lucide="video" class="w-4 h-4 inline mr-1"></i> MP4
+              </button>
+              <button data-format="mp3" class="format-btn rounded-xl py-3 text-sm font-semibold transition border border-white/10 text-slate-300 hover:bg-white/5">
+                <i data-lucide="music" class="w-4 h-4 inline mr-1"></i> MP3
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Quality</label>
+            <select id="qualitySelect" class="fancy-input appearance-none cursor-pointer">
+              <option value="">Paste a URL first…</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="downloadBtn" disabled class="btn-primary w-full mt-6 py-4 text-base">
+          <i data-lucide="download" class="w-5 h-5 mr-2"></i> Download
+        </button>
+
+        <div id="dlStatus" class="mt-4 text-sm text-slate-400 text-center"></div>
+      </div>
+
+      <div class="lg:col-span-2 glass-strong rounded-2xl p-6">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">Video Preview</h3>
+        <div id="previewEmpty" class="flex flex-col items-center justify-center text-center py-12 text-slate-500">
+          <i data-lucide="image" class="w-10 h-10 mb-3 opacity-40"></i>
+          <p class="text-sm">Video details will appear here.</p>
+        </div>
+        <div id="previewCard" class="hidden">
+          <div class="relative rounded-xl overflow-hidden mb-4">
+            <img id="pvThumb" src="" alt="" class="w-full aspect-video object-cover"/>
+            <div class="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-black/70 text-xs font-mono" id="pvDuration">--:--</div>
+          </div>
+          <h4 id="pvTitle" class="font-semibold text-sm leading-snug"></h4>
+          <div class="flex items-center gap-2 mt-2 text-xs text-slate-400">
+            <i data-lucide="user" class="w-3.5 h-3.5"></i>
+            <span id="pvAuthor">—</span>
+            <span class="mx-1">·</span>
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+            <span id="pvViews">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= API DOCS ================= -->
+  <section id="viewApi" class="hidden animate-slide-up">
+    <div class="mb-6">
+      <h1 class="text-2xl sm:text-3xl font-extrabold">API Documentation</h1>
+      <p class="text-sm text-slate-400">Everything you need to integrate Saziki Downloader into your apps.</p>
+    </div>
+
+    <div class="glass-strong rounded-2xl p-6 mb-6 grad-border">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <label for="qualitySelect">Quality</label>
-          <select id="qualitySelect">
-            <option value="720p">720p</option>
-          </select>
+          <div class="text-xs font-semibold uppercase tracking-wider text-neon-400 mb-1">Your API Key</div>
+          <div class="text-xs text-slate-400">Permanent · Never rotates · Keep it secret</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="toggleKeyBtn" class="icon-btn" title="Show / Hide"><i data-lucide="eye" class="w-4 h-4"></i></button>
+          <button id="copyKeyBtn" class="icon-btn" title="Copy"><i data-lucide="copy" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+      <div class="mt-4 p-4 rounded-xl bg-black/40 border border-white/5 font-mono text-sm text-cyan-300 break-all" id="apiKeyValue">—</div>
+    </div>
+
+    <div class="space-y-6">
+
+      <!-- video_info -->
+      <div class="glass rounded-2xl p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <span class="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">POST</span>
+          <code class="text-sm font-mono text-slate-200">/api/v1/video_info</code>
+        </div>
+        <p class="text-sm text-slate-400 mb-4">Fetch metadata (title, author, duration, views, thumbnail) for a given YouTube URL.</p>
+        <div class="code-tabs flex gap-2 mb-3" data-target="ex-info">
+          <button class="code-tab active" data-lang="curl">cURL</button>
+          <button class="code-tab" data-lang="js">JavaScript</button>
+          <button class="code-tab" data-lang="py">Python</button>
+        </div>
+        <div class="code-blocks" id="ex-info">
+          <pre class="code" data-lang="curl"><span class="c"># Fetch video metadata</span>
+curl -X POST https://YOUR-APP.up.railway.app/api/v1/video_info \
+  -H <span class="s">"Authorization: Bearer YOUR_API_KEY"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"url":"https://youtu.be/VIDEO_ID"}'</span></pre>
+          <pre class="code hidden" data-lang="js"><span class="c">// Fetch video metadata</span>
+<span class="k">const</span> res = <span class="k">await</span> fetch(<span class="s">"https://YOUR-APP.up.railway.app/api/v1/video_info"</span>, {
+  method: <span class="s">"POST"</span>,
+  headers: {
+    <span class="s">"Authorization"</span>: <span class="s">"Bearer YOUR_API_KEY"</span>,
+    <span class="s">"Content-Type"</span>: <span class="s">"application/json"</span>,
+  },
+  body: JSON.stringify({ url: <span class="s">"https://youtu.be/VIDEO_ID"</span> }),
+});
+<span class="k">const</span> data = <span class="k">await</span> res.json();</pre>
+          <pre class="code hidden" data-lang="py"><span class="c"># Fetch video metadata</span>
+<span class="k">import</span> requests
+
+r = requests.post(
+    <span class="s">"https://YOUR-APP.up.railway.app/api/v1/video_info"</span>,
+    headers={<span class="s">"Authorization"</span>: <span class="s">"Bearer YOUR_API_KEY"</span>},
+    json={<span class="s">"url"</span>: <span class="s">"https://youtu.be/VIDEO_ID"</span>},
+)
+<span class="k">print</span>(r.json())</pre>
         </div>
       </div>
 
-      <button class="btn full" id="downloadBtn">⬇️ Download</button>
-      <p class="muted center" id="dlStatus" style="margin-top:12px;"></p>
-    </div>
-
-    <!-- Video info card -->
-    <div class="card hidden" id="infoCard">
-      <h2>Video Info</h2>
-      <div class="info-grid">
-        <img id="infoThumb" alt="thumbnail" src="" />
-        <div class="meta">
-          <p><strong id="infoTitle">—</strong></p>
-          <p>Author: <span id="infoAuthor">—</span></p>
-          <p>Duration: <span id="infoDuration">—</span> sec</p>
+      <!-- available_resolutions -->
+      <div class="glass rounded-2xl p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <span class="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">POST</span>
+          <code class="text-sm font-mono text-slate-200">/api/v1/available_resolutions</code>
+        </div>
+        <p class="text-sm text-slate-400 mb-4">Get all available MP4 resolutions and MP3 bitrates for a video.</p>
+        <div class="code-tabs flex gap-2 mb-3" data-target="ex-res">
+          <button class="code-tab active" data-lang="curl">cURL</button>
+          <button class="code-tab" data-lang="js">JavaScript</button>
+          <button class="code-tab" data-lang="py">Python</button>
+        </div>
+        <div class="code-blocks" id="ex-res">
+          <pre class="code" data-lang="curl">curl -X POST https://YOUR-APP.up.railway.app/api/v1/available_resolutions \
+  -H <span class="s">"Authorization: Bearer YOUR_API_KEY"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"url":"https://youtu.be/VIDEO_ID"}'</span></pre>
+          <pre class="code hidden" data-lang="js"><span class="k">const</span> res = <span class="k">await</span> fetch(<span class="s">"https://YOUR-APP.up.railway.app/api/v1/available_resolutions"</span>, {
+  method: <span class="s">"POST"</span>,
+  headers: {
+    <span class="s">"Authorization"</span>: <span class="s">"Bearer YOUR_API_KEY"</span>,
+    <span class="s">"Content-Type"</span>: <span class="s">"application/json"</span>,
+  },
+  body: JSON.stringify({ url: <span class="s">"https://youtu.be/VIDEO_ID"</span> }),
+});
+<span class="k">const</span> data = <span class="k">await</span> res.json();</pre>
+          <pre class="code hidden" data-lang="py"><span class="k">import</span> requests
+r = requests.post(
+    <span class="s">"https://YOUR-APP.up.railway.app/api/v1/available_resolutions"</span>,
+    headers={<span class="s">"Authorization"</span>: <span class="s">"Bearer YOUR_API_KEY"</span>},
+    json={<span class="s">"url"</span>: <span class="s">"https://youtu.be/VIDEO_ID"</span>},
+)
+<span class="k">print</span>(r.json())</pre>
         </div>
       </div>
+
+      <!-- download -->
+      <div class="glass rounded-2xl p-6">
+        <div class="flex items-center gap-3 mb-3">
+          <span class="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">POST</span>
+          <code class="text-sm font-mono text-slate-200">/api/v1/download</code>
+        </div>
+        <p class="text-sm text-slate-400 mb-4">
+          Stream the selected video or audio. Returns the raw binary (attachment).<br/>
+          Parameters: <code class="text-cyan-300">url</code>,
+          <code class="text-cyan-300">format</code> (mp4/mp3),
+          <code class="text-cyan-300">quality</code> (e.g. "720p", "320kbps").
+        </p>
+        <div class="code-tabs flex gap-2 mb-3" data-target="ex-dl">
+          <button class="code-tab active" data-lang="curl">cURL</button>
+          <button class="code-tab" data-lang="js">JavaScript</button>
+          <button class="code-tab" data-lang="py">Python</button>
+        </div>
+        <div class="code-blocks" id="ex-dl">
+          <pre class="code" data-lang="curl">curl -L -o video.mp4 \
+  <span class="s">"https://YOUR-APP.up.railway.app/api/v1/download?url=https://youtu.be/VIDEO_ID&amp;format=mp4&amp;quality=720p&amp;api_key=YOUR_API_KEY"</span></pre>
+          <pre class="code hidden" data-lang="js"><span class="k">const</span> url = <span class="s">"https://YOUR-APP.up.railway.app/api/v1/download"</span>
+  + <span class="s">"?url="</span> + encodeURIComponent(<span class="s">"https://youtu.be/VIDEO_ID"</span>)
+  + <span class="s">"&amp;format=mp4&amp;quality=720p"</span>
+  + <span class="s">"&amp;api_key=YOUR_API_KEY"</span>;
+window.location.href = url;</pre>
+          <pre class="code hidden" data-lang="py"><span class="k">import</span> requests
+r = requests.get(
+    <span class="s">"https://YOUR-APP.up.railway.app/api/v1/download"</span>,
+    params={
+        <span class="s">"url"</span>: <span class="s">"https://youtu.be/VIDEO_ID"</span>,
+        <span class="s">"format"</span>: <span class="s">"mp4"</span>,
+        <span class="s">"quality"</span>: <span class="s">"720p"</span>,
+        <span class="s">"api_key"</span>: <span class="s">"YOUR_API_KEY"</span>,
+    },
+    stream=<span class="k">True</span>,
+)
+<span class="k">with</span> open(<span class="s">"video.mp4"</span>, <span class="s">"wb"</span>) <span class="k">as</span> f:
+    <span class="k">for</span> chunk <span class="k">in</span> r.iter_content(<span class="n">8192</span>):
+        f.write(chunk)</pre>
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-6">
+        <h3 class="font-bold mb-3">Authentication</h3>
+        <p class="text-sm text-slate-400 mb-3">Provide your API key in any of these ways:</p>
+        <ul class="text-sm space-y-2">
+          <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-400 mt-0.5"></i><span>Query parameter: <code class="text-cyan-300">?api_key=YOUR_KEY</code></span></li>
+          <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-400 mt-0.5"></i><span>Bearer header: <code class="text-cyan-300">Authorization: Bearer YOUR_KEY</code></span></li>
+          <li class="flex items-start gap-2"><i data-lucide="check" class="w-4 h-4 text-emerald-400 mt-0.5"></i><span>Custom header: <code class="text-cyan-300">x-api-key: YOUR_KEY</code></span></li>
+        </ul>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <!-- API documentation panel (opens from dropdown) -->
-  <div id="apiPanel" class="card hidden api-doc">
-    <h2>🔑 API Access</h2>
-    <p class="sub">Use this endpoint to download videos programmatically.</p>
-
-    <label>Endpoint</label>
-    <pre>GET https://YOUR-DOMAIN/api/v1/download</pre>
-
-    <label>Authentication (choose one)</label>
-    <pre>?api_key=YOUR_KEY
-Authorization: Bearer YOUR_KEY
-x-api-key: YOUR_KEY</pre>
-
-    <label>Parameters</label>
-    <pre>url       = YouTube video URL (required)
-format    = mp4 | mp3        (default: mp4)
-quality   = 720p | 1080p ... or 128kbps | 192kbps ...
-info_only = 1 (return metadata only, no file)</pre>
-
-    <label>Example</label>
-    <pre>curl -L -o video.mp4 \
-  "https://YOUR-DOMAIN/api/v1/download?api_key=YOUR_KEY&url=https://youtu.be/VIDEO_ID&format=mp4&quality=720p"</pre>
-
-    <label>Your API Key</label>
-    <div class="key-box">
-      <code id="apiKeyDisplay">—</code>
-      <button class="icon-btn" id="toggleKeyBtn" title="Show / hide">👁️</button>
-      <button class="icon-btn" id="copyKeyBtn" title="Copy">📋</button>
+  <!-- ================= ACCOUNT ================= -->
+  <section id="viewAccount" class="hidden animate-slide-up">
+    <div class="mb-6">
+      <h1 class="text-2xl sm:text-3xl font-extrabold">Account Settings</h1>
+      <p class="text-sm text-slate-400">Manage your profile and security.</p>
     </div>
-    <p class="muted" style="font-size:.82rem;margin-top:8px;">
-      Key is permanent and unique to your account. Do not share it publicly.
-    </p>
-  </div>
 
-  <!-- Account panel -->
-  <div id="accountPanel" class="card hidden">
-    <h2>👤 Account</h2>
-    <p class="sub">Signed in as <strong id="acctEmail">—</strong></p>
-    <p class="sub">Usage count: <strong id="acctUsage">0</strong></p>
-    <button class="btn ghost" id="acctLogout" style="margin-top:16px;">Logout</button>
-  </div>
+    <div class="grid lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 glass-strong rounded-2xl p-6">
+        <h2 class="text-lg font-bold mb-5 flex items-center gap-2">
+          <i data-lucide="user-circle" class="w-5 h-5 text-neon-400"></i> Profile
+        </h2>
 
-</div>
+        <div class="flex items-center gap-4 mb-6">
+          <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-neon-400 to-cyan-400 flex items-center justify-center text-white text-2xl font-bold overflow-hidden" id="acctAvatar">?</div>
+          <div class="flex-1">
+            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Display Name</label>
+            <input id="acctDisplayName" type="text" class="fancy-input mt-1" placeholder="Your name"/>
+          </div>
+        </div>
+
+        <div class="mb-5">
+          <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Avatar URL</label>
+          <input id="acctAvatarUrl" type="text" class="fancy-input mt-1" placeholder="https://..."/>
+        </div>
+
+        <div class="mb-5">
+          <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email</label>
+          <input id="acctEmail" type="text" class="fancy-input mt-1 opacity-60" disabled/>
+        </div>
+
+        <button id="saveProfileBtn" class="btn-primary">
+          <i data-lucide="save" class="w-4 h-4 mr-2"></i> Update Profile
+        </button>
+      </div>
+
+      <div class="glass-strong rounded-2xl p-6">
+        <h2 class="text-lg font-bold mb-5 flex items-center gap-2">
+          <i data-lucide="activity" class="w-5 h-5 text-cyan-400"></i> Stats
+        </h2>
+        <div class="space-y-4">
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wider">Total API Calls</div>
+            <div class="text-3xl font-black grad-text mt-1" id="acctUsage">0</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wider">Member Since</div>
+            <div class="text-sm mt-1" id="acctCreated">—</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 uppercase tracking-wider">Status</div>
+            <div class="inline-flex items-center gap-2 mt-1 px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Active
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-2 glass-strong rounded-2xl p-6">
+        <h2 class="text-lg font-bold mb-5 flex items-center gap-2">
+          <i data-lucide="lock" class="w-5 h-5 text-pink-400"></i> Change Password
+        </h2>
+
+        <div class="space-y-4 max-w-md">
+          <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Current Password</label>
+            <input id="pwCurrent" type="password" class="fancy-input mt-1" placeholder="••••••••"/>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">New Password</label>
+            <input id="pwNew" type="password" class="fancy-input mt-1" placeholder="••••••••"/>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Confirm New Password</label>
+            <input id="pwConfirm" type="password" class="fancy-input mt-1" placeholder="••••••••"/>
+          </div>
+          <button id="changePwBtn" class="btn-ghost">Update Password</button>
+        </div>
+      </div>
+
+      <div class="glass-strong rounded-2xl p-6 border border-red-500/20">
+        <h2 class="text-lg font-bold mb-3 flex items-center gap-2 text-red-300">
+          <i data-lucide="log-out" class="w-5 h-5"></i> Session
+        </h2>
+        <p class="text-sm text-slate-400 mb-4">Sign out of this device. Your data stays safe.</p>
+        <button id="logoutBtn" class="btn-danger w-full font-semibold">
+          <i data-lucide="log-out" class="w-4 h-4 mr-2"></i> Logout
+        </button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="max-w-7xl mx-auto px-4 sm:px-6 py-10 text-center text-xs text-slate-500">
+  © <span id="year"></span> Saziki Downloader · Built with Flask, Supabase &amp; pytubefix
+</footer>
 
 <!-- ================= AUTH MODAL ================= -->
-<div class="modal-backdrop" id="authModal">
-  <div class="modal">
-    <h2 id="authTitle">Welcome</h2>
-    <div class="tabs">
-      <button id="tabLogin" class="active">Login</button>
-      <button id="tabRegister">Register</button>
+<div id="authModal" class="modal fixed inset-0 z-[200] items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+  <div class="glass-strong rounded-2xl p-7 w-full max-w-md animate-slide-up">
+    <div class="flex items-center justify-between mb-5">
+      <h2 id="authTitle" class="text-2xl font-extrabold">Welcome back</h2>
+      <button id="closeAuthModal" class="icon-btn"><i data-lucide="x" class="w-4 h-4"></i></button>
     </div>
 
-    <label for="authEmail">Email</label>
-    <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email"/>
+    <div class="grid grid-cols-2 gap-2 mb-6 p-1 rounded-xl bg-black/30">
+      <button id="tabLogin" class="py-2.5 rounded-lg text-sm font-semibold transition bg-neon-500/20 text-white">Sign In</button>
+      <button id="tabRegister" class="py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:text-white transition">Create Account</button>
+    </div>
 
-    <label for="authPassword">Password</label>
-    <input id="authPassword" type="password" placeholder="••••••••" autocomplete="current-password"/>
-
-    <button class="btn full" id="authSubmit">Login</button>
-    <p class="msg" id="authMsg"></p>
+    <div class="space-y-4">
+      <div>
+        <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Email</label>
+        <input id="authEmail" type="email" class="fancy-input mt-1" placeholder="you@example.com"/>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Password</label>
+        <input id="authPassword" type="password" class="fancy-input mt-1" placeholder="••••••••"/>
+      </div>
+      <button id="authSubmit" class="btn-primary w-full py-3">
+        <span id="authSubmitText">Sign In</span>
+      </button>
+      <div id="authMsg" class="text-sm text-center"></div>
+    </div>
   </div>
 </div>
+
+<div id="toasts" class="fixed top-20 right-4 z-[300] space-y-2"></div>
 
 <script>
 /* ============================================================
-   Supabase client
+   Supabase
    ============================================================ */
 const SUPABASE_URL = "{{ supabase_url }}";
 const SUPABASE_KEY = "{{ supabase_key }}";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* ============================================================
-   DOM shortcuts
-   ============================================================ */
-const $ = (id) => document.getElementById(id);
+const $  = (id) => document.getElementById(id);
 
-const els = {
-  avatar: $("avatarBtn"),
-  dropdown: $("dropdown"),
-  ddEmail: $("ddEmail"),
-  ddAccount: $("ddAccount"),
-  ddApi: $("ddApi"),
-  ddLogout: $("ddLogout"),
-
-  dashboard: $("dashboard"),
-  apiPanel: $("apiPanel"),
-  accountPanel: $("accountPanel"),
-
-  urlInput: $("urlInput"),
-  formatSelect: $("formatSelect"),
-  qualitySelect: $("qualitySelect"),
-  downloadBtn: $("downloadBtn"),
-  dlStatus: $("dlStatus"),
-
-  infoCard: $("infoCard"),
-  infoThumb: $("infoThumb"),
-  infoTitle: $("infoTitle"),
-  infoAuthor: $("infoAuthor"),
-  infoDuration: $("infoDuration"),
-
-  apiKeyDisplay: $("apiKeyDisplay"),
-  toggleKeyBtn: $("toggleKeyBtn"),
-  copyKeyBtn: $("copyKeyBtn"),
-
-  acctEmail: $("acctEmail"),
-  acctUsage: $("acctUsage"),
-  acctLogout: $("acctLogout"),
-
-  authModal: $("authModal"),
-  authTitle: $("authTitle"),
-  tabLogin: $("tabLogin"),
-  tabRegister: $("tabRegister"),
-  authEmail: $("authEmail"),
-  authPassword: $("authPassword"),
-  authSubmit: $("authSubmit"),
-  authMsg: $("authMsg"),
+const state = {
+  user: null,
+  apiKey: "",
+  keyVisible: false,
+  format: "mp4",
+  lastInfo: null,
+  lastFormats: null,
+  authMode: "login",
 };
 
 /* ============================================================
-   State
+   Toast
    ============================================================ */
-let currentUser = null;
-let currentApiKey = "";
-let keyVisible = false;
-let authMode = "login";
+function toast(msg, type = "info") {
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  const icon = type === "success" ? "check-circle" :
+               type === "error"   ? "alert-triangle" : "info";
+  const color = type === "success" ? "text-emerald-400" :
+                type === "error"   ? "text-red-400"   : "text-cyan-400";
+  el.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 ${color}"></i>
+                  <span class="text-sm">${msg}</span>`;
+  $("toasts").appendChild(el);
+  lucide.createIcons();
+  setTimeout(() => { el.style.transition = ".3s"; el.style.opacity = "0"; }, 3400);
+  setTimeout(() => el.remove(), 3800);
+}
+
+/* ============================================================
+   View router
+   ============================================================ */
+function showView(name) {
+  ["Landing", "Dashboard", "Api", "Account"].forEach((v) => {
+    const el = $("view" + v);
+    if (el) el.classList.toggle("hidden", v.toLowerCase() !== name.toLowerCase());
+  });
+  ["Home","Dashboard","Api","Account"].forEach((n) => {
+    const el = $("nav" + n);
+    if (el) el.classList.remove("text-white", "bg-white/5");
+  });
+  const map = { landing: "Home", dashboard: "Dashboard", api: "Api", account: "Account" };
+  const nEl = $("nav" + map[name.toLowerCase()]);
+  if (nEl) nEl.classList.add("text-white", "bg-white/5");
+}
 
 /* ============================================================
    Auth UI
    ============================================================ */
-function openAuthModal(mode = "login") {
-  authMode = mode;
+function openAuth(mode = "login") {
+  state.authMode = mode;
   updateAuthModeUI();
-  els.authModal.classList.add("open");
+  $("authModal").classList.add("open");
+  setTimeout(() => $("authEmail").focus(), 150);
 }
-function closeAuthModal() {
-  els.authModal.classList.remove("open");
-  els.authMsg.textContent = "";
+function closeAuth() {
+  $("authModal").classList.remove("open");
+  $("authMsg").textContent = "";
 }
 function updateAuthModeUI() {
-  const isLogin = authMode === "login";
-  els.tabLogin.classList.toggle("active", isLogin);
-  els.tabRegister.classList.toggle("active", !isLogin);
-  els.authTitle.textContent = isLogin ? "Login" : "Create account";
-  els.authSubmit.textContent = isLogin ? "Login" : "Register";
-  els.authMsg.textContent = "";
+  const isLogin = state.authMode === "login";
+  $("authTitle").textContent = isLogin ? "Welcome back" : "Create your account";
+  $("authSubmitText").textContent = isLogin ? "Sign In" : "Create Account";
+  $("tabLogin").className = "py-2.5 rounded-lg text-sm font-semibold transition " +
+      (isLogin ? "bg-neon-500/20 text-white" : "text-slate-400 hover:text-white");
+  $("tabRegister").className = "py-2.5 rounded-lg text-sm font-semibold transition " +
+      (!isLogin ? "bg-neon-500/20 text-white" : "text-slate-400 hover:text-white");
+  $("authMsg").textContent = "";
 }
 
-els.tabLogin.onclick = () => { authMode = "login"; updateAuthModeUI(); };
-els.tabRegister.onclick = () => { authMode = "register"; updateAuthModeUI(); };
+$("tabLogin").onclick    = () => { state.authMode = "login";    updateAuthModeUI(); };
+$("tabRegister").onclick = () => { state.authMode = "register"; updateAuthModeUI(); };
+$("closeAuthModal").onclick = closeAuth;
+$("authModal").addEventListener("click", (e) => { if (e.target.id === "authModal") closeAuth(); });
 
 async function handleAuth() {
-  const email = els.authEmail.value.trim();
-  const password = els.authPassword.value;
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value;
+
   if (!email || !password) {
-    setAuthMsg("Email and password required.", "error"); return;
+    $("authMsg").className = "text-sm text-center text-red-400";
+    $("authMsg").textContent = "Please fill in email and password.";
+    return;
   }
-  els.authSubmit.disabled = true;
-  setAuthMsg(authMode === "login" ? "Signing in..." : "Creating account...");
+  $("authSubmit").disabled = true;
+  $("authMsg").className = "text-sm text-center text-slate-400";
+  $("authMsg").textContent = state.authMode === "login" ? "Signing you in…" : "Creating your account…";
 
   try {
-    if (authMode === "login") {
+    if (state.authMode === "login") {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
       await onLoggedIn(data.user);
+      closeAuth();
+      showView("dashboard");
+      toast(`Welcome back, ${data.user.email}`, "success");
     } else {
       const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
-      if (data.user && !data.session) {
-        setAuthMsg("Check your email to confirm your account, then log in.", "success");
-        els.authSubmit.disabled = false;
-        return;
+
+      // Instant login if email confirmation is disabled
+      if (data.session && data.user) {
+        await onLoggedIn(data.user);
+        closeAuth();
+        showView("dashboard");
+        toast("Account created — welcome!", "success");
+      } else {
+        // Confirmation required: try immediate login
+        const { data: loginData, error: loginErr } =
+          await sb.auth.signInWithPassword({ email, password });
+        if (!loginErr && loginData.session) {
+          await onLoggedIn(loginData.user);
+          closeAuth();
+          showView("dashboard");
+          toast("Account created — welcome!", "success");
+        } else {
+          $("authMsg").className = "text-sm text-center text-emerald-400";
+          $("authMsg").textContent =
+            "Account created. Check your email to confirm, then sign in.";
+        }
       }
-      if (data.user) await onLoggedIn(data.user);
     }
-    closeAuthModal();
   } catch (err) {
-    setAuthMsg(err.message || String(err), "error");
+    $("authMsg").className = "text-sm text-center text-red-400";
+    $("authMsg").textContent = err.message || "Authentication failed.";
   } finally {
-    els.authSubmit.disabled = false;
+    $("authSubmit").disabled = false;
   }
 }
-els.authSubmit.onclick = handleAuth;
-
-function setAuthMsg(text, cls = "") {
-  els.authMsg.textContent = text;
-  els.authMsg.className = "msg " + cls;
-}
+$("authSubmit").onclick = handleAuth;
+$("authPassword").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") handleAuth();
+});
 
 /* ============================================================
-   Session / profile lifecycle
+   Session lifecycle
    ============================================================ */
 async function onLoggedIn(user) {
-  currentUser = user;
-  els.avatar.textContent = (user.email || "?").charAt(0).toUpperCase();
-  els.ddEmail.textContent = user.email || "—";
-  els.acctEmail.textContent = user.email || "—";
-  els.ddLogout.classList.remove("hidden");
-  els.dashboard.classList.remove("hidden");
-  els.accountPanel.classList.add("hidden");
-  els.apiPanel.classList.add("hidden");
+  state.user = user;
+  $("guestCta").classList.add("hidden");
+  $("userArea").classList.remove("hidden");
+  $("navDashboard").classList.remove("hidden");
+  $("navApi").classList.remove("hidden");
+  $("navAccount").classList.remove("hidden");
 
-  await fetchOrCreateApiKey(user);
+  const initial = (user.email || "?").charAt(0).toUpperCase();
+  $("avatarInitial").textContent = initial;
+  $("acctAvatar").textContent = initial;
+  $("ddEmail").textContent = user.email || "—";
+  $("acctEmail").value = user.email || "";
+
+  await fetchOrCreateKey();
 }
 
-async function fetchOrCreateApiKey(user) {
+async function fetchOrCreateKey() {
   try {
     const res = await fetch("/api/v1/me", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: user.id, email: user.email }),
+      body: JSON.stringify({ user_id: state.user.id, email: state.user.email }),
     });
     const json = await res.json();
-    if (!json.success) throw new Error(json.error || "API key fetch failed");
-    currentApiKey = json.data.api_key;
-    els.acctUsage.textContent = json.data.usage_count ?? 0;
-    renderApiKey();
+    if (!json.success) throw new Error(json.error || "Failed to load API key");
+
+    state.apiKey = json.data.api_key;
+    $("apiKeyValue").textContent = maskKey(state.apiKey);
+    $("acctUsage").textContent = json.data.usage_count ?? 0;
+    $("acctCreated").textContent = json.data.created_at
+      ? new Date(json.data.created_at).toLocaleDateString()
+      : "—";
+    $("acctDisplayName").value = json.data.display_name || "";
+    $("acctAvatarUrl").value = json.data.avatar_url || "";
+
+    if (json.data.avatar_url) applyAvatar(json.data.avatar_url);
   } catch (err) {
     console.error(err);
-    els.apiKeyDisplay.textContent = "Error loading key";
+    toast("Could not load API key.", "error");
   }
 }
 
-function renderApiKey() {
-  els.apiKeyDisplay.textContent = keyVisible
-    ? currentApiKey
-    : "•".repeat(Math.min(currentApiKey.length, 40));
-  els.toggleKeyBtn.textContent = keyVisible ? "🙈" : "👁️";
+function applyAvatar(url) {
+  if (url) {
+    $("avatarBtn").style.backgroundImage = `url(${url})`;
+    $("avatarBtn").style.backgroundSize = "cover";
+    $("avatarBtn").style.backgroundPosition = "center";
+    $("avatarInitial").classList.add("hidden");
+  } else {
+    $("avatarBtn").style.backgroundImage = "";
+    $("avatarInitial").classList.remove("hidden");
+  }
 }
 
-els.toggleKeyBtn.onclick = () => { keyVisible = !keyVisible; renderApiKey(); };
-els.copyKeyBtn.onclick = async () => {
-  if (!currentApiKey) return;
-  try {
-    await navigator.clipboard.writeText(currentApiKey);
-    els.copyKeyBtn.textContent = "✅";
-    setTimeout(() => (els.copyKeyBtn.textContent = "📋"), 1200);
-  } catch {
-    alert("Copy failed. Long-press the key to copy manually.");
-  }
-};
+function maskKey(k) {
+  if (!k) return "—";
+  return state.keyVisible ? k : "•".repeat(Math.min(k.length, 44));
+}
 
 /* ============================================================
    Header dropdown
    ============================================================ */
-els.avatar.onclick = (e) => {
+$("avatarBtn").onclick = (e) => {
   e.stopPropagation();
-  if (!currentUser) { openAuthModal("login"); return; }
-  els.dropdown.classList.toggle("open");
+  $("avatarDropdown").classList.toggle("open");
 };
-document.addEventListener("click", () => els.dropdown.classList.remove("open"));
-els.dropdown.onclick = (e) => e.stopPropagation();
+document.addEventListener("click", () => $("avatarDropdown").classList.remove("open"));
+$("avatarDropdown").addEventListener("click", (e) => e.stopPropagation());
 
-els.ddAccount.onclick = () => {
-  els.accountPanel.classList.remove("hidden");
-  els.apiPanel.classList.add("hidden");
-  els.dashboard.classList.add("hidden");
-  els.dropdown.classList.remove("open");
-};
-els.ddApi.onclick = () => {
-  els.apiPanel.classList.remove("hidden");
-  els.accountPanel.classList.add("hidden");
-  els.dashboard.classList.add("hidden");
-  els.dropdown.classList.remove("open");
-};
-
-async function logout() {
-  await sb.auth.signOut();
-  currentUser = null;
-  currentApiKey = "";
-  els.avatar.textContent = "?";
-  els.ddEmail.textContent = "Not signed in";
-  els.ddLogout.classList.add("hidden");
-  els.dashboard.classList.add("hidden");
-  els.apiPanel.classList.add("hidden");
-  els.accountPanel.classList.add("hidden");
-  els.dropdown.classList.remove("open");
-}
-els.ddLogout.onclick = logout;
-els.acctLogout.onclick = logout;
-
-/* ============================================================
-   Video info + quality fetch
-   ============================================================ */
-async function fetchVideoInfo(url) {
-  const res = await fetch(`/api/v1/qualities?url=${encodeURIComponent(url)}`);
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || "info failed");
-  return json.data;
-}
-
-els.urlInput.addEventListener("blur", async () => {
-  const url = els.urlInput.value.trim();
-  if (!url || !currentUser) return;
-  els.dlStatus.textContent = "Fetching video info...";
-  try {
-    const info = await fetchVideoInfo(url);
-    els.infoCard.classList.remove("hidden");
-    els.infoThumb.src = info.thumbnail;
-    els.infoTitle.textContent = info.title;
-    els.infoAuthor.textContent = info.author;
-    els.infoDuration.textContent = info.duration;
-    populateQualities();
-    els.dlStatus.textContent = "";
-  } catch (err) {
-    els.dlStatus.textContent = "Could not fetch info: " + err.message;
-  }
+document.querySelectorAll(".dd-item").forEach((el) => {
+  el.onclick = () => {
+    const target = el.dataset.nav;
+    if (target === "account") showView("account");
+    if (target === "api")     showView("api");
+    if (target === "dashboard") showView("dashboard");
+    $("avatarDropdown").classList.remove("open");
+  };
 });
 
-function populateQualities() {
-  const fmt = els.formatSelect.value;
-  els.qualitySelect.innerHTML = "";
-  const list = fmt === "mp4"
-    ? (window._lastInfo?.mp4 || ["360p", "720p", "1080p"])
-    : (window._lastInfo?.mp3 || ["128kbps", "192kbps", "320kbps"]);
+$("navHome").onclick      = (e) => { e.preventDefault(); showView("landing"); };
+$("navDashboard").onclick = (e) => { e.preventDefault(); showView("dashboard"); };
+$("navApi").onclick       = (e) => { e.preventDefault(); showView("api"); };
+$("navAccount").onclick   = (e) => { e.preventDefault(); showView("account"); };
+
+$("btnStartTop").onclick  = () => openAuth("register");
+$("heroStart").onclick    = () => openAuth("register");
+$("btnLoginTop").onclick  = () => openAuth("login");
+
+/* ============================================================
+   API key display
+   ============================================================ */
+$("toggleKeyBtn").onclick = () => {
+  state.keyVisible = !state.keyVisible;
+  $("apiKeyValue").textContent = maskKey(state.apiKey);
+  $("toggleKeyBtn").innerHTML = state.keyVisible
+    ? '<i data-lucide="eye-off" class="w-4 h-4"></i>'
+    : '<i data-lucide="eye" class="w-4 h-4"></i>';
+  lucide.createIcons();
+};
+
+$("copyKeyBtn").onclick = async () => {
+  if (!state.apiKey) return;
+  try {
+    await navigator.clipboard.writeText(state.apiKey);
+    toast("API key copied.", "success");
+  } catch {
+    toast("Copy failed — select manually.", "error");
+  }
+};
+
+/* ============================================================
+   Format toggle & dynamic quality
+   ============================================================ */
+document.querySelectorAll(".format-btn").forEach((btn) => {
+  btn.onclick = () => {
+    state.format = btn.dataset.format;
+    document.querySelectorAll(".format-btn").forEach((b) => {
+      const active = b.dataset.format === state.format;
+      b.className = "format-btn rounded-xl py-3 text-sm font-semibold transition border " +
+        (active
+          ? "border-neon-400/40 bg-neon-400/10 text-white"
+          : "border-white/10 text-slate-300 hover:bg-white/5");
+    });
+    populateQuality();
+  };
+});
+
+function populateQuality() {
+  const list = state.lastFormats?.[state.format] || [];
+  const sel = $("qualitySelect");
+  sel.innerHTML = "";
+  if (!list.length) {
+    sel.innerHTML = '<option value="">Paste a URL first…</option>';
+    return;
+  }
   list.forEach((q) => {
-    const opt = document.createElement("option");
-    opt.value = q; opt.textContent = q;
-    els.qualitySelect.appendChild(opt);
+    const o = document.createElement("option");
+    o.value = q; o.textContent = q;
+    sel.appendChild(o);
   });
 }
 
-// Patch fetchVideoInfo to cache result for populateQualities
-const _origFetchInfo = fetchVideoInfo;
-window.fetchVideoInfo = fetchVideoInfo = async (url) => {
-  const info = await _origFetchInfo(url);
-  window._lastInfo = info;
-  return info;
-};
+/* ============================================================
+   URL → auto fetch info
+   ============================================================ */
+let fetchTimer = null;
+$("urlInput").addEventListener("input", () => {
+  clearTimeout(fetchTimer);
+  const url = $("urlInput").value.trim();
+  if (!url) { hidePreview(); $("downloadBtn").disabled = true; return; }
+  fetchTimer = setTimeout(() => fetchInfo(url), 650);
+});
 
-els.formatSelect.onchange = () => {
-  if (window._lastInfo) populateQualities();
-};
+async function fetchInfo(url) {
+  $("dlStatus").innerHTML = '<span class="spinner"></span> Fetching video info…';
+  $("downloadBtn").disabled = true;
+  try {
+    const res = await fetch("/api/fetch_info", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || "Failed");
+
+    state.lastInfo = json.info;
+    state.lastFormats = json.formats;
+    renderPreview(json.info);
+    populateQuality();
+    $("downloadBtn").disabled = false;
+    $("dlStatus").textContent = "";
+  } catch (err) {
+    $("dlStatus").textContent = "";
+    toast("Could not load video: " + err.message, "error");
+    hidePreview();
+    $("downloadBtn").disabled = true;
+  }
+}
+
+function renderPreview(info) {
+  $("previewEmpty").classList.add("hidden");
+  $("previewCard").classList.remove("hidden");
+  $("pvThumb").src = info.thumbnail || "";
+  $("pvTitle").textContent = info.title || "—";
+  $("pvAuthor").textContent = info.author || "—";
+  $("pvViews").textContent = info.views ? Number(info.views).toLocaleString() : "—";
+  $("pvDuration").textContent = fmtDuration(info.length);
+}
+function hidePreview() {
+  $("previewEmpty").classList.remove("hidden");
+  $("previewCard").classList.add("hidden");
+}
+function fmtDuration(sec) {
+  if (!sec && sec !== 0) return "--:--";
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 /* ============================================================
    Download
    ============================================================ */
-els.downloadBtn.onclick = async () => {
-  const url = els.urlInput.value.trim();
-  if (!url) { els.dlStatus.textContent = "Please enter a YouTube URL."; return; }
-  if (!currentApiKey) { els.dlStatus.textContent = "API key not loaded."; return; }
+$("downloadBtn").onclick = async () => {
+  const url = $("urlInput").value.trim();
+  const quality = $("qualitySelect").value;
 
-  const fmt = els.formatSelect.value;
-  const quality = els.qualitySelect.value;
-  els.downloadBtn.disabled = true;
-  els.dlStatus.innerHTML = '<span class="spinner"></span> Preparing download...';
+  if (!url)      { toast("Please enter a YouTube URL.", "error"); return; }
+  if (!quality)  { toast("Select a quality.", "error"); return; }
+  if (!state.apiKey) { toast("API key not loaded.", "error"); return; }
+
+  $("downloadBtn").disabled = true;
+  $("dlStatus").innerHTML = '<span class="spinner"></span> Preparing download…';
 
   try {
-    const endpoint = `/api/v1/download?api_key=${encodeURIComponent(currentApiKey)}`
-                   + `&url=${encodeURIComponent(url)}`
-                   + `&format=${encodeURIComponent(fmt)}`
-                   + `&quality=${encodeURIComponent(quality)}`;
+    const endpoint = `/api/v1/download`
+      + `?url=${encodeURIComponent(url)}`
+      + `&format=${encodeURIComponent(state.format)}`
+      + `&quality=${encodeURIComponent(quality)}`
+      + `&api_key=${encodeURIComponent(state.apiKey)}`;
 
     const res = await fetch(endpoint);
     if (!res.ok) {
@@ -592,37 +1076,144 @@ els.downloadBtn.onclick = async () => {
     }
     const blob = await res.blob();
     const cd = res.headers.get("Content-Disposition") || "";
-    const match = cd.match(/filename="?([^"]+)"?/);
-    const filename = match ? match[1] : `${fmt}_download`;
+    const m = cd.match(/filename="?([^"]+)"?/);
+    const name = m ? m[1] : `${state.format}_download`;
 
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(link.href);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(a.href);
 
-    els.dlStatus.textContent = "✅ Download complete!";
+    $("dlStatus").innerHTML = '<span class="text-emerald-400">✓ Download complete</span>';
+    toast("Download complete!", "success");
   } catch (err) {
-    els.dlStatus.textContent = "❌ " + err.message;
+    $("dlStatus").innerHTML = `<span class="text-red-400">✗ ${err.message}</span>`;
+    toast(err.message, "error");
   } finally {
-    els.downloadBtn.disabled = false;
+    $("downloadBtn").disabled = false;
   }
 };
 
 /* ============================================================
-   Bootstrap: restore session on load
+   Profile update
    ============================================================ */
+$("saveProfileBtn").onclick = async () => {
+  if (!state.user) return;
+  const display_name = $("acctDisplayName").value.trim();
+  const avatar_url = $("acctAvatarUrl").value.trim();
+
+  try {
+    const res = await fetch("/api/v1/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: state.user.id,
+        display_name,
+        avatar_url,
+      }),
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+
+    applyAvatar(avatar_url);
+    toast("Profile updated.", "success");
+  } catch (err) {
+    toast("Could not save profile: " + err.message, "error");
+  }
+};
+
+/* ============================================================
+   Change Password
+   ============================================================ */
+$("changePwBtn").onclick = async () => {
+  const current = $("pwCurrent").value;
+  const newPw = $("pwNew").value;
+  const confirm = $("pwConfirm").value;
+
+  if (!current || !newPw || !confirm) { toast("Fill in all password fields.", "error"); return; }
+  if (newPw !== confirm)              { toast("New passwords do not match.", "error"); return; }
+  if (newPw.length < 6)               { toast("Password must be at least 6 characters.", "error"); return; }
+
+  try {
+    const { error: signInErr } = await sb.auth.signInWithPassword({
+      email: state.user.email, password: current,
+    });
+    if (signInErr) throw new Error("Current password is incorrect.");
+
+    const { error } = await sb.auth.updateUser({ password: newPw });
+    if (error) throw error;
+
+    $("pwCurrent").value = ""; $("pwNew").value = ""; $("pwConfirm").value = "";
+    toast("Password updated successfully.", "success");
+  } catch (err) {
+    toast(err.message, "error");
+  }
+};
+
+/* ============================================================
+   Logout (only inside Account view)
+   ============================================================ */
+$("logoutBtn").onclick = async () => {
+  await sb.auth.signOut();
+  resetToGuest();
+  showView("landing");
+  toast("Signed out.", "info");
+};
+
+function resetToGuest() {
+  state.user = null; state.apiKey = ""; state.lastInfo = null; state.lastFormats = null;
+  $("guestCta").classList.remove("hidden");
+  $("userArea").classList.add("hidden");
+  $("navDashboard").classList.add("hidden");
+  $("navApi").classList.add("hidden");
+  $("navAccount").classList.add("hidden");
+  $("avatarDropdown").classList.remove("open");
+  $("urlInput").value = "";
+  $("qualitySelect").innerHTML = '<option value="">Paste a URL first…</option>';
+  $("downloadBtn").disabled = true;
+  hidePreview();
+}
+
+/* ============================================================
+   Code tabs (API docs)
+   ============================================================ */
+document.querySelectorAll(".code-tabs").forEach((tabBar) => {
+  const targetId = tabBar.dataset.target;
+  const container = document.getElementById(targetId);
+  tabBar.querySelectorAll(".code-tab").forEach((tab) => {
+    tab.onclick = () => {
+      tabBar.querySelectorAll(".code-tab").forEach((t) => t.classList.remove("active"));
+      tab.classList.add("active");
+      container.querySelectorAll("pre.code").forEach((pre) => {
+        pre.classList.toggle("hidden", pre.dataset.lang !== tab.dataset.lang);
+      });
+    };
+  });
+});
+
+/* ============================================================
+   Bootstrap
+   ============================================================ */
+document.getElementById("year").textContent = new Date().getFullYear();
+
 (async () => {
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
     await onLoggedIn(session.user);
+    showView("dashboard");
   } else {
-    openAuthModal("login");
+    showView("landing");
+    setTimeout(() => { if (!state.user) openAuth("register"); }, 900);
   }
+  lucide.createIcons();
 })();
-</script>
 
+/* Re-render icons on DOM mutations */
+const iconObserver = new MutationObserver(() => lucide.createIcons());
+iconObserver.observe(document.body, { childList: true, subtree: true });
+</script>
 </body>
   </html>

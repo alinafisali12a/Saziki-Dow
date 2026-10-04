@@ -4,8 +4,14 @@ Flask==3.0.3
 # --- Production WSGI server ---
 gunicorn==22.0.0
 
-# --- HTTP client (for future API calls / metadata fetching) ---
+# --- HTTP client ---
 requests==2.32.3
 
-# --- YouTube downloader/metadata (pytube fork, actively maintained) ---
+# --- YouTube downloader/metadata ---
 pytubefix==8.5.0
+
+# --- Supabase client ---
+supabase==2.9.1
+
+# --- Environment variable loading ---
+python-dotenv==1.0.1
